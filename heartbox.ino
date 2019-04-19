@@ -12,19 +12,19 @@ byte heart[8] =
 
 //  VARIABLES
 int pulsePin = 0;                 // Pulse Sensor purple wire connected to analog pin 0
-int blinkPin = 13;                // pin to blink led at each beat
+int blinkPin = 9;                // pin to blink led at each beat
 
 // these variables are volatile because they are used during the interrupt service routine!
 volatile int BPM;                   // used to hold the pulse rate
 volatile int Signal;                // holds the incoming raw data
 volatile int IBI = 600;             // holds the time between beats, the Inter-Beat Interval
 volatile boolean Pulse = false;     // true when pulse wave is high, false when it's low
-volatile boolean QS = false;        // becomes true when Arduoino finds a beat.
+volatile boolean QS = false;        // becomes true when Arduino finds a beat.
 
 
 void setup(){
   pinMode(blinkPin,OUTPUT);         // pin that will blink to your heartbeat!
-  Serial.begin(115200);             //The speed of communication
+  Serial.begin(19200);             //The speed of communication
   interruptSetup();                 
 
   pinMode(pulsePin, INPUT);
@@ -73,6 +73,8 @@ void interruptSetup(){
 ISR(TIMER2_COMPA_vect){                         // triggered when Timer2 counts to 124
     cli();                                      // disable interrupts while we do this
     Signal = analogRead(pulsePin);              // read the Pulse Sensor 
+//    Serial.println(Signal);
+//    Serial.print(" ");
     sampleCounter += 2;                         // keep track of the time in mS with this variable
     int N = sampleCounter - lastBeatTime;       // monitor the time since the last beat to avoid noise
 
