@@ -1,3 +1,18 @@
+#include <SD.h>
+//#include <pcmConfig.h> // not compiling
+//#include <pcmRF.h>
+#include <TMRpcm.h>
+//#include <SPI.h>
+
+#define SD_ChipSelectPin  10
+#define MaxFileNumber     2
+
+//char randomAudio[] = {"1.wav", "2.wav", "3.wav", "4.wav", "5.wav", "6.wav", "7.wav", "8.wav", "9.wav", "10.wav", "11.wav"};
+char filenumber[20];
+
+TMRpcm tmrpcm;
+unsigned time = 0;
+
 byte heart[8] = 
 {
   0b00000,
@@ -13,8 +28,8 @@ byte heart[8] =
 //  VARIABLES
 int pulsePin = 0;                 // Pulse Sensor purple wire connected to analog pin 0
 int blinkPin = 9;                // pin to blink led at each beat
-int blinkPin2 = 8;                // pin to blink led at each beat
-int blinkPin3 = 7;                // pin to blink led at each beat
+//int blinkPin2 = 8;                // pin to blink led at each beat
+//int blinkPin3 = 7;                // pin to blink led at each beat
 
 // these variables are volatile because they are used during the interrupt service routine!
 volatile int BPM = 100;                   // used to hold the pulse rate
@@ -34,16 +49,32 @@ void setup(){
 
   pinMode(led, OUTPUT);
   pinMode(blinkPin,OUTPUT);         // pin that will blink to your heartbeat!
-  pinMode(blinkPin2,OUTPUT);        
-  pinMode(blinkPin3,OUTPUT);         
+//  pinMode(blinkPin2,OUTPUT);        
+//  pinMode(blinkPin3,OUTPUT);         
   
-  Serial.begin(19200);             //The speed of communication
+  randomSeed((analogRead(0) + analogRead(1) + analogRead(2)) / 2);
+  tmrpcm.speakerPin = 9;
+
+  Serial.begin(9600);             //The speed of communication
+
+  pinMode(SD_ChipSelectPin, OUTPUT);
+  
+  if (!SD.begin(SD_ChipSelectPin)) {
+    Serial.println("SD fail");
+ //   return;
+  }
+  else Serial.println("SD succeed!!");
+
+  tmrpcm.setVolume(5);
+  sprintf(filenumber, "%d.wav", random(0 ,MaxFileNumber));
+  tmrpcm.play(filenumber);
   
   interruptSetup();                 
 
   pinMode(pulsePin, INPUT);
   
   delay(1000);
+  
 }
 
 
@@ -62,7 +93,7 @@ void loop(){
       }
       
       // reverse the direction of the fading at the ends of the fade:
-      if (brightness <= 0 || brightness >= 245) {
+      if (brightness <= 0 || brightness >= 238) {
         fadeAmount = -fadeAmount;
       }
    
