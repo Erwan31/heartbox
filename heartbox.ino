@@ -1,3 +1,18 @@
+#include <SD.h>
+//#include <pcmConfig.h> // not compiling
+//#include <pcmRF.h>
+#include <TMRpcm.h>
+//#include <SPI.h>
+
+#define SD_ChipSelectPin  10
+#define MaxFileNumber     2
+
+//char randomAudio[] = {"1.wav", "2.wav", "3.wav", "4.wav", "5.wav", "6.wav", "7.wav", "8.wav", "9.wav", "10.wav", "11.wav"};
+char filenumber[20];
+
+TMRpcm tmrpcm;
+unsigned time = 0;
+
 byte heart[8] = 
 {
   0b00000,
@@ -12,40 +27,84 @@ byte heart[8] =
 
 //  VARIABLES
 int pulsePin = 0;                 // Pulse Sensor purple wire connected to analog pin 0
-int blinkPin = 13;                // pin to blink led at each beat
+int blinkPin = 9;                // pin to blink led at each beat
+//int blinkPin2 = 8;                // pin to blink led at each beat
+//int blinkPin3 = 7;                // pin to blink led at each beat
 
 // these variables are volatile because they are used during the interrupt service routine!
-volatile int BPM;                   // used to hold the pulse rate
+volatile int BPM = 100;                   // used to hold the pulse rate
 volatile int Signal;                // holds the incoming raw data
 volatile int IBI = 600;             // holds the time between beats, the Inter-Beat Interval
 volatile boolean Pulse = false;     // true when pulse wave is high, false when it's low
-volatile boolean QS = false;        // becomes true when Arduoino finds a beat.
+volatile boolean QS = false;        // becomes true when Arduino finds a beat.
 
+int led = 10;
+int brightness = 0;    // how bright the LED is
+int fadeAmount = 5;    // how many points to fade the LED by
+int countzeros = 300, count = 0;
+int fade = true;
+float delay_corrected;
 
 void setup(){
+
+  pinMode(led, OUTPUT);
   pinMode(blinkPin,OUTPUT);         // pin that will blink to your heartbeat!
-  Serial.begin(115200);             //The speed of communication
+//  pinMode(blinkPin2,OUTPUT);        
+//  pinMode(blinkPin3,OUTPUT);         
+  
+  randomSeed((analogRead(0) + analogRead(1) + analogRead(2)) / 2);
+  tmrpcm.speakerPin = 9;
+
+  Serial.begin(9600);             //The speed of communication
+
+  pinMode(SD_ChipSelectPin, OUTPUT);
+  
+  if (!SD.begin(SD_ChipSelectPin)) {
+    Serial.println("SD fail");
+ //   return;
+  }
+  else Serial.println("SD succeed!!");
+
+  tmrpcm.setVolume(5);
+  sprintf(filenumber, "%d.wav", random(0 ,MaxFileNumber));
+  tmrpcm.play(filenumber);
+  
   interruptSetup();                 
 
   pinMode(pulsePin, INPUT);
+  
   delay(1000);
+  
 }
 
 
 
 void loop(){
-  sendDataToProcessing('S', Signal);     // send Processing the raw Pulse Sensor data
-  if (QS == true){                       // Quantified Self flag is true when arduino finds a heartbeat
-        sendDataToProcessing('B',BPM);   // send heart rate with a 'B' prefix
-        QS = false;                      // reset the Quantified Self flag for next time                       
-       }
-        delay(20);  
-}
+  
+  if( fade = true ){ 
+      // set the brightness of pin 9:
+      analogWrite(led, brightness);
+    
+      // change the brightness for next time through the loop:
+      brightness = brightness + fadeAmount;
+      // if the brightness is above
+      if( brightness > 128 ){
+        brightness = brightness + 3*fadeAmount;
+      }
+      
+      // reverse the direction of the fading at the ends of the fade:
+      if (brightness <= 0 || brightness >= 238) {
+        fadeAmount = -fadeAmount;
+      }
+   
+   }
 
-void sendDataToProcessing(char symbol, int data ){
-    Serial.print(symbol);                // symbol prefix tells Processing what type of data is coming
-    Serial.println(data);                // the data to send culminating in a carriage return
-  }
+   delay_corrected = -0.625*BPM +77;
+   if( delay_corrected <= 10) delay_corrected = 10;
+   // wait for n milliseconds to see the dimming effect
+   delay(delay_corrected); 
+  
+}
 
 volatile int rate[10];                    // used to hold last ten IBI values
 volatile unsigned long sampleCounter = 0;          // used to determine pulse timing
@@ -73,6 +132,8 @@ void interruptSetup(){
 ISR(TIMER2_COMPA_vect){                         // triggered when Timer2 counts to 124
     cli();                                      // disable interrupts while we do this
     Signal = analogRead(pulsePin);              // read the Pulse Sensor 
+//    Serial.println(Signal);
+//    Serial.print(" ");
     sampleCounter += 2;                         // keep track of the time in mS with this variable
     int N = sampleCounter - lastBeatTime;       // monitor the time since the last beat to avoid noise
 
@@ -92,7 +153,7 @@ ISR(TIMER2_COMPA_vect){                         // triggered when Timer2 counts 
 if (N > 250){                                   // avoid high frequency noise
   if ( (Signal > thresh) && (Pulse == false) && (N > (IBI/5)*3) ){        
     Pulse = true;                               // set the Pulse flag when we think there is a pulse
-    digitalWrite(blinkPin,HIGH);                // turn on pin 13 LED
+ //   digitalWrite(blinkPin,HIGH);                // turn on pin 13 LED
     IBI = sampleCounter - lastBeatTime;         // measure time between beats in mS
     lastBeatTime = sampleCounter;               // keep track of time for next pulse
          
@@ -120,6 +181,8 @@ if (N > 250){                                   // avoid high frequency noise
     runningTotal /= 10;                     // average the last 10 IBI values 
     BPM = 60000/runningTotal;               // how many beats can fit into a minute? that's BPM!
 
+    // Le calcul de la période de PWM se fait ici
+
     QS = true;                              // set Quantified Self flag 
     // QS FLAG IS NOT CLEARED INSIDE THIS ISR
     }                       
@@ -141,6 +204,7 @@ if (N > 250){                                   // avoid high frequency noise
       lastBeatTime = sampleCounter;          // bring the lastBeatTime up to date        
       firstBeat = true;                      // set these to avoid noise
       secondBeat = true;                     // when we get the heartbeat back
+      BPM = 100;
      }
   
   sei();                                     // enable interrupts when youre done!
